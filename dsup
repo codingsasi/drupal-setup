@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 usage() {
-  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [-v <drupal version>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git" 1>&2;
   exit 1; }
 #Options: -u { mysql username } -p { mysql password }
 while getopts ":u:p:" o; do
@@ -63,6 +63,10 @@ fi
 echo -e "\nCloning git repository..."
 sudo -u $SUDO_USER git clone "$4" web
 echo -e "\nDone. Writing settings file..."
+
+#Checking for Drupal version
+drupal=$(grep -oE 'Drupal [0-9]{1}' CHANGELOG.txt -m 1)
+IFS=' ' read -r -a version <<< "$drupal"
 
 #If settings.php exists
 if [ -f $PWD/web/sites/default/settings.php ]; then
