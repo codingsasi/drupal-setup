@@ -1,6 +1,23 @@
-#!/bin/bash    
+#!/bin/bash
+
+# Copyright 2015 Abhai Sasidharan <abhai.sasidharan@zyxware.com>
+# Copyright 2015 Anish A <anish.a@zyxware.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 usage() {
-  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u uername -p password /home/abhai/drupal8.tar.gz drupal8.local git@github.com:someone/drupal8.git" 1>&2; 
+  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git" 1>&2;
   exit 1; }
 #Options: -u { mysql username } -p { mysql password }
 while getopts ":u:p:" o; do
@@ -35,7 +52,7 @@ else
     echo -e "\nExtracting and importing database. This may take a while..."
     gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
   #If database with same name exists
-  else 
+  else
     mysql -u "${u}" -p"${p}" -e "drop database $2"
     mysql -u "${u}" -p"${p}" -e "create database $2"
     echo -e "\nExtracting and importing database. This may take a while..."
@@ -72,16 +89,16 @@ else
 fi
 
 echo "Creating virtual host..."
-echo -e "<VirtualHost *:80> 
-    ServerAdmin webmaster@localhost 
-    ServerName $3 
-    DocumentRoot $PWD/web 
-    <Directory $PWD/web> 
-        AllowOverride All 
-        Order allow,deny 
-        allow from all 
+echo -e "<VirtualHost *:80>
+    ServerAdmin webmaster@localhost
+    ServerName $3
+    DocumentRoot $PWD/web
+    <Directory $PWD/web>
+        AllowOverride All
+        Order allow,deny
+        allow from all
 	Require all granted
-    </Directory> 
+    </Directory>
 </VirtualHost>" > /etc/apache2/sites-available/"$3".conf
 
 echo -e "127.0.0.1       $3\n$(cat /etc/hosts)" > /etc/hosts
