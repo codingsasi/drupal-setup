@@ -1,0 +1,89 @@
+#!/bin/bash    
+usage() {
+  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u uername -p password /home/abhai/drupal8.tar.gz drupal8.local git@github.com:someone/drupal8.git" 1>&2; 
+  exit 1; }
+#Options: -u { mysql username } -p { mysql password }
+while getopts ":u:p:" o; do
+  case "${o}" in
+    u)
+      u=${OPTARG}
+      ;;
+    p)
+      p=${OPTARG}
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+#Options have been considered now shift that to the remaining arguments
+shift "$((OPTIND-1))"
+
+#Check for all the arguments
+if [ -z "${u}" ] || [ -z "${p}" ] || [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]; then
+  usage
+fi
+# If database doesn't exist
+if [ ! -d /var/lib/mysql/"$2" ]; then
+  mysql -u "${u}" -p"${p}" -e "create database $2"
+  echo -e "\nExtracting and importing database. This may take a while..."
+  gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
+else
+  TABLES=$(mysql -u "${u}" -p"${p}" $2 -e 'show tables')
+  # If empty database exists
+  if [ "$TABLES" == "" ]; then
+    echo -e "\nExtracting and importing database. This may take a while..."
+    gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
+  #If database with same name exists
+  else 
+    mysql -u "${u}" -p"${p}" -e "drop database $2"
+    mysql -u "${u}" -p"${p}" -e "create database $2"
+    echo -e "\nExtracting and importing database. This may take a while..."
+    gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
+  fi
+fi
+
+echo -e "\nCloning git repository..."
+sudo -u $SUDO_USER git clone "$4" web
+echo -e "\nDone. Writing settings file..."
+
+if [ -f $PWD/web/sites/default/settings.php ]; then
+  old_database=grep -F "'database' => " $PWD/web/sites/default/settings.php | grep -Fv "*"
+  sed "s/$old_database/$2/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
+  rm $PWD/web/sites/default/settings.php
+  mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+  old_username=grep -F "'username' => " $PWD/web/sites/default/settings.php | grep -Fv "*"
+  sed "s/$old_username/${u}/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
+  rm $PWD/web/sites/default/settings.php
+  mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+  old_password=grep -F "'password' => " $PWD/web/sites/default/settings.php | grep -Fv "*"
+  sed "s/$old_password/${p}/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
+  rm $PWD/web/sites/default/settings.php
+  mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+else
+  cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
+  old="databases = array();"
+  new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
+  sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
+  rm $PWD/web/sites/default/settings.php
+  mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+fi
+
+echo "Creating virtual host..."
+echo -e "<VirtualHost *:80> 
+    ServerAdmin webmaster@localhost 
+    ServerName $3 
+    DocumentRoot $PWD/web 
+    <Directory $PWD/web> 
+        AllowOverride All 
+        Order allow,deny 
+        allow from all 
+	Require all granted
+    </Directory> 
+</VirtualHost>" > /etc/apache2/sites-available/"$3".conf
+
+echo -e "127.0.0.1       $3\n$(cat /etc/hosts)" > /etc/hosts
+a2ensite $3
+service apache2 restart
+
+echo "Drupal Virtual host setup complete!"
