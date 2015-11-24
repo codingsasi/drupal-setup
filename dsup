@@ -47,6 +47,7 @@ echo -e "\nCloning git repository..."
 sudo -u $SUDO_USER git clone "$4" web
 echo -e "\nDone. Writing settings file..."
 
+#If settings.php exists
 if [ -f $PWD/web/sites/default/settings.php ]; then
   old_database=grep -F "'database' => " $PWD/web/sites/default/settings.php | grep -Fv "*"
   sed "s/$old_database/$2/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
@@ -61,6 +62,7 @@ if [ -f $PWD/web/sites/default/settings.php ]; then
   rm $PWD/web/sites/default/settings.php
   mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
 else
+  #Use default.settings.php to add database connection details
   cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
   old="databases = array();"
   new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
