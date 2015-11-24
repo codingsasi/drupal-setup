@@ -14,11 +14,11 @@ Note: This requires sudo access
 
 ## Usage
 
-`dsup [-u <string>] [-p <string>] [/path/to/database/dump] [database name] [Virtual Host Name] [Link to repo]`
+`sudo dsup [-u <string>] [-p <string>] [/path/to/database/dump] [database name] [Virtual Host Name] [Link to repo]`
 
 ### Example
 
-`dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git`
+`sudo dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git`
 
 ## TODO
 
