@@ -17,37 +17,116 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 usage() {
-  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [-n <drupal version for new installation>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
-  exit 1; }
-#Options: -u { mysql username } -p { mysql password }
-while getopts ":u:p:n:" o; do
-  case "${o}" in
-    u)
-      u=${OPTARG}
-      ;;
-    p)
-      p=${OPTARG}
-      ;;
-    n)
-      n=${OPTARG}
-      ;;
+  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git\n" 1>&2;
+  exit 1; 
+}
+
+#Function to rollback incase of any errors.
+# 1 = Check for fail and roll back
+# 2 = Simply roll back, or remove drupal instance completely
+checkfail_rollback() {
+  if [ ! -z "$1" ] && [ $1 -eq 1 ]; then
+    if [ $? -eq 0 ]; then
+      echo 'success'
+      exit 1
+    else
+      echo 'fail'
+      exit 1
+    fi
+  elif [ ! -z "$1" ] && [ $1 -eq 2 ] && [ ! -z "$2" ] && [ ! -z $3 ] && [ ! -z $4 ]; then
+    echo $1
+    echo $2
+    echo $3
+    echo $4
+    echo 'remove drupal instance'
+    a2dissite $2
+    if [ ! -a /etc/hosts.old ]; then 
+      cp /etc/hosts /etc/hosts.old
+      sed -n '/'"$2"'/!p' /etc/hosts > /etc/hosts
+    else
+      sed -n '/'"$2"'/!p' /etc/hosts > /etc/hosts
+    fi
+    temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/test.local.conf)
+    for i in $(echo $temproot | tr " " "\n")
+    do
+      webroot="$i"
+    done
+    pushd $webroot > /dev/null
+    db=$(drush status db-name)
+    for i in $(echo $db | tr " : " "\n")
+    do
+      dbname="$i"
+    done
+    popd > /dev/null
+    mysql -u "$3" -p"$4" -e "drop database $dbname"
+    rm -r $webroot
+    exit 1
+  else  
+    echo 'rollback'
+    usage
+  fi
+}
+
+TEMP=`getopt -o r:u:p:n: -n 'dsup' -- "$@"`
+eval set -- "$TEMP"
+#Options: -u { mysql username } -p { mysql password } -n {version for new drupal installation} -r {remove drupal instance}
+while true ; do
+  case "$1" in
+    -u)
+      case "$2" in
+        "")
+          usage ; shift 2 
+          ;;
+        *)
+          u="$2" ; shift 2 
+          ;;
+      esac ;;
+    -p)
+      case "$2" in
+        "")
+          usage ; shift 2 
+          ;;
+        *)
+          p=$2 ; shift 2 
+          ;;
+      esac ;;
+    -r)
+      case "$2" in
+        "") 
+          usage ; shift 2
+          ;;
+        *)
+          r=$2 ; shift
+          u=$3 ; 
+          p=$4 ;  
+          checkfail_rollback 2 "$r" "$u" "$p" ; shift
+          ;;
+      esac ;;
+    -n)
+      case "$2" in
+        "")
+          usage ; shift 2 
+          ;;
+        *)
+          re='^[6-9]$'
+          if [[ $2 =~ $re ]]; then
+            n=$2
+          fi
+          shift 2 ;;
+      esac ;;
+    --) shift ; break ;;
     *)
-      usage
-      ;;
+      usage ;;
   esac
 done
-#Options have been considered now shift that to the remaining arguments
-shift "$((OPTIND-1))"
-echo "LOCAL"
-echo ${u}
-echo ${p}
-echo ${n}
-#Check for all the arguments
-if [ -z "${n}" ] && [ [ -z "${u}" ] || [ -z "${p}" ] || [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] ]; then
-  usage
-elif [ ! -z "${n}" ] && [ [ -z "${u}" ] || [ -z "${p}" ] || [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] ]; then
-  echo "Problem?"
-else
+
+#New installation
+if [ ! -z "$n" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ $# == 2 ]; then
+  echo "new drupal install"
+  exit 1
+#Import existing site  
+elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && [ $# == 4 ]; then
+  echo "old drupal install"
   # If database doesn't exist
   if [ ! -d /var/lib/mysql/"$2" ]; then
     mysql -u "${u}" -p"${p}" -e "create database $2"
@@ -110,4 +189,7 @@ else
   service apache2 restart
 
   echo "Drupal Virtual host setup complete!"
+else
+  echo "usage"
+  usage
 fi
