@@ -25,6 +25,7 @@ usage() {
 # 1 = Check for fail and roll back
 # 2 = Simply roll back, or remove drupal instance completely
 checkfail_rollback() {
+  sudo cat /dev/null
   if [ ! -z "$1" ] && [ $1 -eq 1 ]; then
     if [ $? -eq 0 ]; then
       echo 'success'
@@ -33,38 +34,102 @@ checkfail_rollback() {
       echo 'fail'
       exit 1
     fi
-  elif [ ! -z "$1" ] && [ $1 -eq 2 ] && [ ! -z "$2" ] && [ ! -z $3 ] && [ ! -z $4 ]; then
-    echo $1
-    echo $2
-    echo $3
-    echo $4
-    echo 'remove drupal instance'
-    a2dissite $2
+  elif [ ! -z "$1" ] && [ $1 -eq 2 ] && [ ! -z "$2" ]; then
+    echo -e "\nRemoving and disabling virtual host in the name: $2 ..."
+    sudo a2dissite $2
     if [ ! -a /etc/hosts.old ]; then 
-      cp /etc/hosts /etc/hosts.old
-      sed -n '/'"$2"'/!p' /etc/hosts > /etc/hosts
+      sudo cp /etc/hosts /etc/hosts.old
+      awk '!/'"$2"'/' /etc/hosts > $HOME/hosts.temp
+      sudo chmod 777 $HOME/hosts.temp
+      sudo mv $HOME/hosts.temp /etc/hosts
+      sudo chmod 644 /etc/hosts
     else
-      sed -n '/'"$2"'/!p' /etc/hosts > /etc/hosts
+      awk '!/'"$2"'/' /etc/hosts > hosts.temp
+      sudo chmod 777 $HOME/hosts.temp
+      sudo mv $HOME/hosts.temp /etc/hosts
+      sudo chmod 644 /etc/hosts
+      sudo rm $HOME/hosts.temp
     fi
-    temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/test.local.conf)
+    temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/$2.conf)
     for i in $(echo $temproot | tr " " "\n")
     do
       webroot="$i"
     done
+    echo -e "\nDone. \nRemoving database of drupal installation..."
     pushd $webroot > /dev/null
-    db=$(drush status db-name)
-    for i in $(echo $db | tr " : " "\n")
-    do
-      dbname="$i"
-    done
+    #DB password
+    #For drush 7 and above
+    dbp=$(drush status --show-passwords --format=yaml --pipe | grep 'password')
+    if [ ! -z "$dbp" ]; then
+      for i in $(echo $dbp | tr ": " "\n")
+      do
+        dbpass="$i"
+      done
+    #For drush 6 and below
+    else
+      dbp=$(drush status --show-passwords --pipe | grep 'password')
+      for i in $(echo $dbn | tr "=" "\n")
+      do
+        dbpass="$i"
+      done
+    fi
+    #Either no drush or drush command failed
+    if [ -z "$dbp" ]; then
+      echo 'not installed'
+    fi
+    
+    #DB username
+    #For drush 7 and above
+    dbu=$(drush status db-username --format=yaml --pipe)
+    if [ ! -z "$dbu" ]; then
+      for i in $(echo $dbu | tr ": " "\n")
+      do
+        dbuname="$i"
+      done
+    #For drush 6 and below
+    else
+      dbu=$(drush status --pipe | grep 'username')
+      for i in $(echo $dbu | tr "=" "\n")
+      do
+        dbuname="$i"
+      done
+    fi
+    #Either no drush or drush command failed
+    if [ -z "$dbu" ]; then
+      echo 'not installed'
+    fi
+    
+    #DB name
+    #For drush 7 and above
+    dbn=$(drush status db-name --format=yaml --pipe)
+    if [ ! -z "$dbn" ]; then
+      for i in $(echo $dbn | tr ": " "\n")
+      do
+        dbname="$i"
+      done
+    #For drush 6 and below
+    else
+      dbn=$(drush status --pipe | grep 'username')
+      for i in $(echo $dbu | tr "=" "\n")
+      do
+        dbname="$i"
+      done
+    fi
+    #Either no drush or drush command failed
+    if [ -z "$dbn" ]; then
+      echo 'drush not installed'
+      exit
+    fi
     popd > /dev/null
-    mysql -u "$3" -p"$4" -e "drop database $dbname"
-    rm -r $webroot
-    exit 1
+    mysql -u "$dbuname" -p"$dbpass" -e "drop database $dbname"
+    echo -e "\nDone. \nRemoving all local files and folders..."
+    sudo rm -r $webroot
+    sudo rm /etc/apache2/sites-available/"$2".conf
+    sudo service apache2 restart
   else  
-    echo 'rollback'
     usage
   fi
+  exit 1
 }
 
 TEMP=`getopt -o r:u:p:n: -n 'dsup' -- "$@"`
@@ -96,10 +161,8 @@ while true ; do
           usage ; shift 2
           ;;
         *)
-          r=$2 ; shift
-          u=$3 ; 
-          p=$4 ;  
-          checkfail_rollback 2 "$r" "$u" "$p" ; shift
+          r=$2
+          checkfail_rollback 2 "$r"; shift 2
           ;;
       esac ;;
     -n)
@@ -126,7 +189,6 @@ if [ ! -z "$n" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -
   exit 1
 #Import existing site  
 elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && [ $# == 4 ]; then
-  echo "old drupal install"
   # If database doesn't exist
   if [ ! -d /var/lib/mysql/"$2" ]; then
     mysql -u "${u}" -p"${p}" -e "create database $2"
@@ -148,27 +210,27 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
   fi
 
   echo -e "\nCloning git repository..."
-  sudo -u $SUDO_USER git clone "$4" web
-  echo -e "\nDone. Writing settings file..."
+  git clone "$4" web
+  echo -e "\nDone. \nWriting settings file..."
 
   #If settings.php exists
   if [ -f $PWD/web/sites/default/settings.php ]; then
     #Use default.settings.php to add database connection details
-    cp $PWD/web/sites/default/settings.php $PWD/web/sites/default/settings.php.old
-    cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
+    sudo cp $PWD/web/sites/default/settings.php $PWD/web/sites/default/settings.php.old
+    sudo cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
     old="databases = array();"
     new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
-    rm $PWD/web/sites/default/settings.php
-    mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+    sudo sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $HOME/settings.php.temp
+    sudo rm $PWD/web/sites/default/settings.php
+    sudo mv $HOME/settings.php.temp $PWD/web/sites/default/settings.php
   else
     #Use default.settings.php to add database connection details
     cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
     old="databases = array();"
     new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $PWD/web/sites/default/settings.php.temp
-    rm $PWD/web/sites/default/settings.php
-    mv $PWD/web/sites/default/settings.php.temp $PWD/web/sites/default/settings.php
+    sudo sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $HOME/settings.php.temp
+    sudo rm $PWD/web/sites/default/settings.php
+    sudo mv $HOME/settings.php.temp $PWD/web/sites/default/settings.php
   fi
 
   echo "Creating virtual host..."
@@ -182,14 +244,18 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
     allow from all
     Require all granted
       </Directory>
-  </VirtualHost>" > /etc/apache2/sites-available/"$3".conf
-
-  echo -e "127.0.0.1  $3\n$(cat /etc/hosts)" > /etc/hosts
-  a2ensite $3
-  service apache2 restart
+  </VirtualHost>" > $HOME/"$3".conf.temp
+  sudo mv $HOME/"$3".conf.temp /etc/apache2/sites-available/"$3".conf
+  sudo chmod 644 /etc/apache2/sites-available/"$3".conf
+  sudo cp /etc/hosts $HOME/hosts.temp
+  sudo chmod 777 $HOME/hosts.temp
+  echo -e "127.0.0.1  $3\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
+  sudo mv $HOME/hosts.temp /etc/hosts
+  sudo chmod 644 /etc/hosts
+  sudo a2ensite $3
+  sudo service apache2 restart
 
   echo "Drupal Virtual host setup complete!"
 else
-  echo "usage"
   usage
 fi
