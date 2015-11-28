@@ -17,10 +17,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 usage() {
-  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [Virtual Host Name] [Link to repo] \nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git\n" 1>&2;
-  exit 1; 
+  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [VirtualHost Name] [Link to repo]" 1>&2;
+  echo -e "\nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "\nUsage: dsup [-r <VirtualHost Name>]" 1>&2;
+  echo -e "\nExample: dsup -r drupal.local" 1>&2;
+  exit 1;
 }
-
+password_sshkey() {
+  echo "[sudo] password for abhai: $USER"
+  echo 'Enter you ssh key:'
+  read pkey
+}
 #Function to rollback incase of any errors.
 # 1 = Check for fail and roll back
 # 2 = Simply roll back, or remove drupal instance completely
@@ -37,7 +44,7 @@ checkfail_rollback() {
   elif [ ! -z "$1" ] && [ $1 -eq 2 ] && [ ! -z "$2" ]; then
     echo -e "\nRemoving and disabling virtual host in the name: $2 ..."
     sudo a2dissite $2
-    if [ ! -a /etc/hosts.old ]; then 
+    if [ ! -a /etc/hosts.old ]; then
       sudo cp /etc/hosts /etc/hosts.old
       awk '!/'"$2"'/' /etc/hosts > $HOME/hosts.temp
       sudo chmod 777 $HOME/hosts.temp
@@ -77,7 +84,7 @@ checkfail_rollback() {
     if [ -z "$dbp" ]; then
       echo 'not installed'
     fi
-    
+
     #DB username
     #For drush 7 and above
     dbu=$(drush status db-username --format=yaml --pipe)
@@ -98,7 +105,7 @@ checkfail_rollback() {
     if [ -z "$dbu" ]; then
       echo 'not installed'
     fi
-    
+
     #DB name
     #For drush 7 and above
     dbn=$(drush status db-name --format=yaml --pipe)
@@ -126,7 +133,7 @@ checkfail_rollback() {
     sudo rm -r $webroot
     sudo rm /etc/apache2/sites-available/"$2".conf
     sudo service apache2 restart
-  else  
+  else
     usage
   fi
   exit 1
@@ -140,24 +147,24 @@ while true ; do
     -u)
       case "$2" in
         "")
-          usage ; shift 2 
+          usage ; shift 2
           ;;
         *)
-          u="$2" ; shift 2 
+          u="$2" ; shift 2
           ;;
       esac ;;
     -p)
       case "$2" in
         "")
-          usage ; shift 2 
+          usage ; shift 2
           ;;
         *)
-          p=$2 ; shift 2 
+          p=$2 ; shift 2
           ;;
       esac ;;
     -r)
       case "$2" in
-        "") 
+        "")
           usage ; shift 2
           ;;
         *)
@@ -168,7 +175,7 @@ while true ; do
     -n)
       case "$2" in
         "")
-          usage ; shift 2 
+          usage ; shift 2
           ;;
         *)
           re='^[6-9]$'
@@ -187,8 +194,9 @@ done
 if [ ! -z "$n" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ $# == 2 ]; then
   echo "new drupal install"
   exit 1
-#Import existing site  
+#Import existing site
 elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && [ $# == 4 ]; then
+  sshkey
   # If database doesn't exist
   if [ ! -d /var/lib/mysql/"$2" ]; then
     mysql -u "${u}" -p"${p}" -e "create database $2"
