@@ -14,12 +14,12 @@ Note: This requires sudo access, but you need not prepend sudo, the script will 
 
 ## Usage
 
-`dsup [-u <string>] [-p <string>] [/path/to/database/dump] [database name] [VirtualHost Name] [Link to repo]`
+`dsup [-u <string>] [-p <string>] [/path/to/database/dump] [database name] [VirtualHost Name] [Link to repo]`  
 `dsup [-r <VirtualHost Name>]` : Here <Virtual Host Name> should be the name of the virtual host of the drupal instance you wish to delete completely.
 
 ### Example
 
-`dsup -u dbusername -p dbpassword /home/user/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git`
+`dsup -u dbusername -p dbpassword /home/user/drupal7.tar.gz drupal7.local git@github.com:someone/drupal7.git`  
 `dsup -r drupal.local`
 ## TODO
 
@@ -28,9 +28,9 @@ Note: This requires sudo access, but you need not prepend sudo, the script will 
 ## INSTALL
 
 Open terminal and enter the following commands
-`$ cd /bin`
-`$ sudo ln -s /Path/to/dsup`
-`$ sudo chmod +x /bin/dsup`
+`$ cd /bin`  
+`$ sudo ln -s /Path/to/dsup`  
+`$ sudo chmod +x /bin/dsup`  
 
 You're good to go! Execute the command dsup from anywhere now.
 Run command dsup to check the usage.
