@@ -24,3 +24,13 @@ Note: This requires sudo access, but you need not prepend sudo, the script will 
 ## TODO
 
 * Allow to setup a new drupal instance.
+
+## INSTALL
+
+Open terminal and enter the following commands
+`$ cd /bin`
+`$ sudo ln -s /Path/to/dsup`
+`$ sudo chmod +x /bin/dsup`
+
+You're good to go! Execute the command dsup from anywhere now.
+Run command dsup to check the usage.
