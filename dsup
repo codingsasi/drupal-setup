@@ -18,10 +18,10 @@
 
 usage() {
   echo -e "Usage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [VirtualHost Name] [Link to repo] [optional/path/fo/drupal/installation]" 1>&2;
-  echo -e "Example: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword /home/user/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
   echo -e "Usage: dsup [-u <string>] [-p <string>] [-v <version>] [database name] [VirtualHost Name] [optional/path/fo/drupal/installation]" 1>&2;
   echo -e "Example: dsup -u dbusername -p dbpassword -v 7 dbname drupal7.local /home/user/Projects/drupal" 1>&2;
-  echo -e "Example: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword /home/user/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
   echo -e "Usage: dsup [-r <VirtualHost Name>]" 1>&2;
   echo -e "Example: dsup -r drupal.local\n" 1>&2;
   exit 1;
