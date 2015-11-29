@@ -59,6 +59,14 @@ sudo_password() {
     echo $spass | sudo -S echo hello &> /dev/null
   done
 }
+write_settings_file() {
+  echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
+  old="databases = array();"
+  new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
+  echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
+  echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
+  echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
+}
 check_db_connect() {
   err=$(mysql -u "${u}" -p"${p}" -e 'SHOW DATABASES')
   if [ -z "$err" ]; then
@@ -247,7 +255,7 @@ done
 
 #New installation
 if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && ( [ $# == 2 ] || [ $# == 3 ] ); then
-  echo "new drupal install"
+  echo "New Drupal installation"
   dbname="$1"
   vhost="$2"
   if [ ! -z "$3" ]; then
@@ -268,20 +276,15 @@ if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -
     mysql -u "${u}" -p"${p}" -e "create database $dbname"
   fi
   pushd $INSTALL_LOC > /dev/null
-  drush dl "drupal-$v" --drupal-project-rename=web
+  drush dl -y "drupal-$v" --drupal-project-rename=web
   pushd web > /dev/null
-  echo "\nInstalling Drupal $v with user admin and password admin"
-  drush si --db-url=mysql://"${u}":"${p}"@localhost/"$dbname" --account-pass=admin
+  echo "Installing Drupal $v with user admin and password admin"
+  drush si -y --db-url=mysql://"${u}":"${p}"@localhost/"$dbname" --account-pass=admin
+  popd
   popd
   echo -e "\nDone. \nWriting settings file..."
   #Use default.settings.php to add database connection details
-  echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
-  old="databases = array();"
-  new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-  echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
-  echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
-  echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
-  popd
+  write_settings_file
 
   #Creating symbolic link of folder in public_html
   pushd $PUBLIC_HTML > /dev/null
@@ -290,7 +293,7 @@ if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -
 
   create_virtual_host
 
-  echo "Drupal Virtual host setup complete!"
+  echo "New Drupal Virtual host setup complete!"
 
   exit 1
 #Import existing site
@@ -333,20 +336,10 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
   if [ -f $INSTALL_LOC/web/sites/default/settings.php ]; then
     #Use default.settings.php to add database connection details
     echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/settings.php $INSTALL_LOC/web/sites/default/settings.php.old
-    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
-    old="databases = array();"
-    new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
-    echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
-    echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
+    write_settings_file
   else
     #Use default.settings.php to add database connection details
-    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
-    old="databases = array();"
-    new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
-    echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
-    echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
+    write_settings_file
   fi
 
   #Creating symbolic link of folder in public_html
