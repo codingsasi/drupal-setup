@@ -17,23 +17,38 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 usage() {
-  echo -e "\nUsage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [VirtualHost Name] [Link to repo]" 1>&2;
-  echo -e "\nExample: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
-  echo -e "\nUsage: dsup [-r <VirtualHost Name>]" 1>&2;
-  echo -e "\nExample: dsup -r drupal.local" 1>&2;
+  echo -e "Usage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [VirtualHost Name] [Link to repo] [optional/path/fo/drupal/installation]" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "Usage: dsup [-r <VirtualHost Name>]" 1>&2;
+  echo -e "Example: dsup -r drupal.local\n" 1>&2;
   exit 1;
 }
-password_sshkey() {
-  echo "[sudo] password for abhai: $USER"
-  echo 'Enter you ssh key:'
-  read pkey
+sudo_password() {
+  echo "[sudo] password for $USER:"
+  read -s spass
+  echo $spass | sudo -S echo hello &> /dev/null
+  while ! [ "$(sudo -n echo hello 2>&1)" == "hello" ]; do
+    echo "Error [sudo] Re-enter password for $USER:"
+    read -s spass
+    echo $spass | sudo -S echo hello &> /dev/null
+  done
 }
+check_db_connect() {
+  err=$(mysql -u "${u}" -p"${p}" -e 'SHOW DATABASES')
+  if [ -z "$err" ]; then
+    echo "Database connection failed"
+    exit 1
+  fi
+}
+
 #Function to rollback incase of any errors.
 # 1 = Check for fail and roll back
 # 2 = Simply roll back, or remove drupal instance completely
 checkfail_rollback() {
-  sudo cat /dev/null
-  if [ ! -z "$1" ] && [ $1 -eq 1 ]; then
+  sudo_password
+  flag=$1
+  virtualhost=$2
+  if [ ! -z "$flag" ] && [ $flag -eq 1 ]; then
     if [ $? -eq 0 ]; then
       echo 'success'
       exit 1
@@ -41,28 +56,31 @@ checkfail_rollback() {
       echo 'fail'
       exit 1
     fi
-  elif [ ! -z "$1" ] && [ $1 -eq 2 ] && [ ! -z "$2" ]; then
-    echo -e "\nRemoving and disabling virtual host in the name: $2 ..."
-    sudo a2dissite $2
+  elif [ ! -z "$flag" ] && [ $flag -eq 2 ] && [ ! -z  "$virtualhost" ]; then
+    echo -e "\nRemoving and disabling virtual host with the name: $virtualhost ..."
+    echo $spass | sudo -S a2dissite $virtualhost
     if [ ! -a /etc/hosts.old ]; then
-      sudo cp /etc/hosts /etc/hosts.old
-      awk '!/'"$2"'/' /etc/hosts > $HOME/hosts.temp
-      sudo chmod 777 $HOME/hosts.temp
-      sudo mv $HOME/hosts.temp /etc/hosts
-      sudo chmod 644 /etc/hosts
+      echo $spass | sudo -S cp /etc/hosts /etc/hosts.old
+      awk '!/'"$virtualhost"'/' /etc/hosts > $HOME/hosts.temp
+      echo $spass | sudo -S chmod 777 $HOME/hosts.temp
+      echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
+      echo $spass | sudo -S chmod 644 /etc/hosts
     else
-      awk '!/'"$2"'/' /etc/hosts > hosts.temp
-      sudo chmod 777 $HOME/hosts.temp
-      sudo mv $HOME/hosts.temp /etc/hosts
-      sudo chmod 644 /etc/hosts
-      sudo rm $HOME/hosts.temp
+      awk '!/'"$virtualhost"'/' /etc/hosts > hosts.temp
+      echo $spass | sudo -S chmod 777 $HOME/hosts.temp
+      echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
+      echo $spass | sudo -S chmod 644 /etc/hosts
+      echo $spass | sudo -S rm $HOME/hosts.temp
     fi
-    temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/$2.conf)
+    temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/$virtualhost.conf)
     for i in $(echo $temproot | tr " " "\n")
     do
       webroot="$i"
     done
     echo -e "\nDone. \nRemoving database of drupal installation..."
+    #Getting path of webroot if the webroot in virtual host is a symlink
+    linkdir=$(readlink $webroot)
+
     pushd $webroot > /dev/null
     #DB password
     #For drush 7 and above
@@ -130,14 +148,25 @@ checkfail_rollback() {
     popd > /dev/null
     mysql -u "$dbuname" -p"$dbpass" -e "drop database $dbname"
     echo -e "\nDone. \nRemoving all local files and folders..."
-    sudo rm -r $webroot
-    sudo rm /etc/apache2/sites-available/"$2".conf
-    sudo service apache2 restart
+    if [ ! -z $linkdir ]; then
+      echo $spass | sudo -S rm -r $linkdir
+    fi
+    echo $spass | sudo -S rm -r $webroot
+    echo $spass | sudo -S rm /etc/apache2/sites-available/"$virtualhost".conf
+    echo $spass | sudo -S service apache2 restart
   else
     usage
   fi
   exit 1
 }
+
+#Get public_html folder Path
+if [ -d $HOME/public_html ]; then
+  PUBLIC_HTML="$HOME/public_html"
+elif [ ! -d $HOME/public_html ]; then
+  mkdir $HOME/public_html
+  PUBLIC_HTML="$HOME/public_html"
+fi
 
 TEMP=`getopt -o r:u:p:n: -n 'dsup' -- "$@"`
 eval set -- "$TEMP"
@@ -193,75 +222,93 @@ done
 #New installation
 if [ ! -z "$n" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ $# == 2 ]; then
   echo "new drupal install"
+  db="$1"
+  dbname="$2"
+  vhost="$3"
+  repolink="$4"
+  sudo_password
   exit 1
 #Import existing site
-elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && [ $# == 4 ]; then
-  sshkey
-  # If database doesn't exist
-  if [ ! -d /var/lib/mysql/"$2" ]; then
-    mysql -u "${u}" -p"${p}" -e "create database $2"
-    echo -e "\nExtracting and importing database. This may take a while..."
-    gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
+elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && ( [ $# == 4 ] || [ $# == 5 ] ); then
+  db="$1"
+  dbname="$2"
+  vhost="$3"
+  repolink="$4"
+  if [ ! -z "$5" ]; then
+    INSTALL_LOC=$5
   else
-    TABLES=$(mysql -u "${u}" -p"${p}" $2 -e 'show tables')
-    # If empty database exists
-    if [ "$TABLES" == "" ]; then
-      echo -e "\nExtracting and importing database. This may take a while..."
-      gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
-    #If database with same name exists
-    else
-      mysql -u "${u}" -p"${p}" -e "drop database $2"
-      mysql -u "${u}" -p"${p}" -e "create database $2"
-      echo -e "\nExtracting and importing database. This may take a while..."
-      gunzip < "$1" | mysql -u "$u" -p"$p" "$2"
-    fi
+    INSTALL_LOC=$PWD
+  fi
+  sudo_password
+  #Check db connection
+  check_db_connect
+  # If database doesn't exist
+  dbflag=$(mysql -u "${u}" -p"${p}" -e "SHOW DATABASES LIKE '$dbname'")
+  if [ -z $dbflag ]; then
+    mysql -u "${u}" -p"${p}" -e "create database $dbname"
+    echo -e "\nExtracting and importing database. This may take a while..."
+    gunzip < "$db" | mysql -u "$u" -p"$p" "$dbname"
+  else
+    mysql -u "${u}" -p"${p}" -e "drop database $dbname"
+    mysql -u "${u}" -p"${p}" -e "create database $dbname"
+    echo -e "\nExtracting and importing database. This may take a while..."
+    gunzip < "$db" | mysql -u "$u" -p"$p" "$dbname"
   fi
 
   echo -e "\nCloning git repository..."
-  git clone "$4" web
+  git clone "$repolink" $INSTALL_LOC/web
+  if [ "$?" -ne 0 ]; then
+    echo "[ERROR] Unable to read from '$repolink'"
+    exit 1;
+  fi
   echo -e "\nDone. \nWriting settings file..."
 
   #If settings.php exists
-  if [ -f $PWD/web/sites/default/settings.php ]; then
+  if [ -f $INSTALL_LOC/web/sites/default/settings.php ]; then
     #Use default.settings.php to add database connection details
-    sudo cp $PWD/web/sites/default/settings.php $PWD/web/sites/default/settings.php.old
-    sudo cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
+    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/settings.php $INSTALL_LOC/web/sites/default/settings.php.old
+    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
     old="databases = array();"
-    new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    sudo sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $HOME/settings.php.temp
-    sudo rm $PWD/web/sites/default/settings.php
-    sudo mv $HOME/settings.php.temp $PWD/web/sites/default/settings.php
+    new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
+    echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
+    echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
+    echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
   else
     #Use default.settings.php to add database connection details
-    cp $PWD/web/sites/default/default.settings.php $PWD/web/sites/default/settings.php
+    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
     old="databases = array();"
-    new="databases = array ('default' => array ('default' => array ('database' => '$2', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-    sudo sed "s/$old/$new/g" $PWD/web/sites/default/settings.php > $HOME/settings.php.temp
-    sudo rm $PWD/web/sites/default/settings.php
-    sudo mv $HOME/settings.php.temp $PWD/web/sites/default/settings.php
+    new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
+    echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
+    echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
+    echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
   fi
+
+  #Creating symbolic link of folder in public_html
+  pushd $PUBLIC_HTML > /dev/null
+  ln -s  $INSTALL_LOC/web $vhost
+  popd > /dev/null
 
   echo "Creating virtual host..."
   echo -e "<VirtualHost *:80>
       ServerAdmin webmaster@localhost
-      ServerName $3
-      DocumentRoot $PWD/web
-      <Directory $PWD/web>
+      ServerName $vhost
+      DocumentRoot $PUBLIC_HTML/$vhost
+      <Directory $PUBLIC_HTML/$vhost>
     AllowOverride All
     Order allow,deny
     allow from all
     Require all granted
       </Directory>
-  </VirtualHost>" > $HOME/"$3".conf.temp
-  sudo mv $HOME/"$3".conf.temp /etc/apache2/sites-available/"$3".conf
-  sudo chmod 644 /etc/apache2/sites-available/"$3".conf
-  sudo cp /etc/hosts $HOME/hosts.temp
-  sudo chmod 777 $HOME/hosts.temp
-  echo -e "127.0.0.1  $3\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
-  sudo mv $HOME/hosts.temp /etc/hosts
-  sudo chmod 644 /etc/hosts
-  sudo a2ensite $3
-  sudo service apache2 restart
+  </VirtualHost>" > $HOME/"$vhost".conf.temp
+  echo $spass | sudo -S mv $HOME/"$vhost".conf.temp /etc/apache2/sites-available/"$vhost".conf
+  echo $spass | sudo -S chmod 644 /etc/apache2/sites-available/"$vhost".conf
+  echo $spass | sudo -S cp /etc/hosts $HOME/hosts.temp
+  echo $spass | sudo -S chmod 777 $HOME/hosts.temp
+  echo -e "127.0.0.1  $vhost\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
+  echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
+  echo $spass | sudo -S chmod 644 /etc/hosts
+  echo $spass | sudo -S a2ensite $vhost
+  echo $spass | sudo -S service apache2 restart
 
   echo "Drupal Virtual host setup complete!"
 else
