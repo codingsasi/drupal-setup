@@ -18,10 +18,36 @@
 
 usage() {
   echo -e "Usage: dsup [-u <string>] [-p <string>] [Path/to/database/dump] [database name] [VirtualHost Name] [Link to repo] [optional/path/fo/drupal/installation]" 1>&2;
-  echo -e "Example: dsup -u dbusername -p dbpassword -v 7 /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
+  echo -e "Usage: dsup [-u <string>] [-p <string>] [-v <version>] [database name] [VirtualHost Name] [optional/path/fo/drupal/installation]" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword -v 7 dbname drupal7.local /home/user/Projects/drupal" 1>&2;
+  echo -e "Example: dsup -u dbusername -p dbpassword /home/abhai/drupal7.tar.gz dbname drupal7.local git@github.com:someone/drupal7.git" 1>&2;
   echo -e "Usage: dsup [-r <VirtualHost Name>]" 1>&2;
   echo -e "Example: dsup -r drupal.local\n" 1>&2;
   exit 1;
+}
+create_virtual_host() {
+  echo "Creating virtual host..."
+  echo -e "<VirtualHost *:80>
+      ServerAdmin webmaster@localhost
+      ServerName $vhost
+      DocumentRoot $PUBLIC_HTML/$vhost
+      <Directory $PUBLIC_HTML/$vhost>
+    AllowOverride All
+    Order allow,deny
+    allow from all
+    Require all granted
+      </Directory>
+  </VirtualHost>" > $HOME/"$vhost".conf.temp
+  echo $spass | sudo -S mv $HOME/"$vhost".conf.temp /etc/apache2/sites-available/"$vhost".conf
+  echo $spass | sudo -S chmod 644 /etc/apache2/sites-available/"$vhost".conf
+  echo $spass | sudo -S cp /etc/hosts $HOME/hosts.temp
+  echo $spass | sudo -S chmod 777 $HOME/hosts.temp
+  echo -e "127.0.0.1  $vhost\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
+  echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
+  echo $spass | sudo -S chmod 644 /etc/hosts
+  echo $spass | sudo -S a2ensite $vhost
+  echo $spass | sudo -S service apache2 restart
 }
 sudo_password() {
   echo "[sudo] password for $USER:"
@@ -168,9 +194,9 @@ elif [ ! -d $HOME/public_html ]; then
   PUBLIC_HTML="$HOME/public_html"
 fi
 
-TEMP=`getopt -o r:u:p:n: -n 'dsup' -- "$@"`
+TEMP=`getopt -o r:u:p:v: -n 'dsup' -- "$@"`
 eval set -- "$TEMP"
-#Options: -u { mysql username } -p { mysql password } -n {version for new drupal installation} -r {remove drupal instance}
+#Options: -u { mysql username } -p { mysql password } -v {version for new drupal installation} -r {remove drupal instance}
 while true ; do
   case "$1" in
     -u)
@@ -201,7 +227,7 @@ while true ; do
           checkfail_rollback 2 "$r"; shift 2
           ;;
       esac ;;
-    -n)
+    -v)
       case "$2" in
         "")
           usage ; shift 2
@@ -209,7 +235,7 @@ while true ; do
         *)
           re='^[6-9]$'
           if [[ $2 =~ $re ]]; then
-            n=$2
+            v=$2
           fi
           shift 2 ;;
       esac ;;
@@ -220,13 +246,52 @@ while true ; do
 done
 
 #New installation
-if [ ! -z "$n" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ $# == 2 ]; then
+if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && ( [ $# == 2 ] || [ $# == 3 ] ); then
   echo "new drupal install"
-  db="$1"
-  dbname="$2"
-  vhost="$3"
-  repolink="$4"
+  dbname="$1"
+  vhost="$2"
+  if [ ! -z "$3" ]; then
+    INSTALL_LOC=$3
+  else
+    INSTALL_LOC=$PWD
+  fi
+  #Get sudo password and validate it
   sudo_password
+  #Check db connection
+  check_db_connect
+  # If database doesn't exist
+  dbflag=$(mysql -u "${u}" -p"${p}" -e "SHOW DATABASES LIKE '$dbname'")
+  if [ -z "$dbflag" ]; then
+    mysql -u "${u}" -p"${p}" -e "create database $dbname"
+  else
+    mysql -u "${u}" -p"${p}" -e "drop database $dbname"
+    mysql -u "${u}" -p"${p}" -e "create database $dbname"
+  fi
+  pushd $INSTALL_LOC > /dev/null
+  drush dl "drupal-$v" --drupal-project-rename=web
+  pushd web > /dev/null
+  echo "\nInstalling Drupal $v with user admin and password admin"
+  drush si --db-url=mysql://"${u}":"${p}"@localhost/"$dbname" --account-pass=admin
+  popd
+  echo -e "\nDone. \nWriting settings file..."
+  #Use default.settings.php to add database connection details
+  echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
+  old="databases = array();"
+  new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
+  echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
+  echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
+  echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
+  popd
+
+  #Creating symbolic link of folder in public_html
+  pushd $PUBLIC_HTML > /dev/null
+  ln -s  $INSTALL_LOC/web $vhost
+  popd > /dev/null
+
+  create_virtual_host
+
+  echo "Drupal Virtual host setup complete!"
+
   exit 1
 #Import existing site
 elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && [ ! -z "$3" ] && [ ! -z "$4" ] ) && ( [ $# == 4 ] || [ $# == 5 ] ); then
@@ -239,6 +304,7 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
   else
     INSTALL_LOC=$PWD
   fi
+  #Get sudo password and validate it
   sudo_password
   #Check db connection
   check_db_connect
@@ -288,27 +354,7 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
   ln -s  $INSTALL_LOC/web $vhost
   popd > /dev/null
 
-  echo "Creating virtual host..."
-  echo -e "<VirtualHost *:80>
-      ServerAdmin webmaster@localhost
-      ServerName $vhost
-      DocumentRoot $PUBLIC_HTML/$vhost
-      <Directory $PUBLIC_HTML/$vhost>
-    AllowOverride All
-    Order allow,deny
-    allow from all
-    Require all granted
-      </Directory>
-  </VirtualHost>" > $HOME/"$vhost".conf.temp
-  echo $spass | sudo -S mv $HOME/"$vhost".conf.temp /etc/apache2/sites-available/"$vhost".conf
-  echo $spass | sudo -S chmod 644 /etc/apache2/sites-available/"$vhost".conf
-  echo $spass | sudo -S cp /etc/hosts $HOME/hosts.temp
-  echo $spass | sudo -S chmod 777 $HOME/hosts.temp
-  echo -e "127.0.0.1  $vhost\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
-  echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
-  echo $spass | sudo -S chmod 644 /etc/hosts
-  echo $spass | sudo -S a2ensite $vhost
-  echo $spass | sudo -S service apache2 restart
+  create_virtual_host
 
   echo "Drupal Virtual host setup complete!"
 else
