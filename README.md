@@ -9,11 +9,11 @@ This does the following things:
 * Create a settings file with given username and password.
 * Create virtual host, enable site and restart apache.
 * Append the virtual host name to hosts file.
-* Deletes an entire drupal instance (database, hosts etc) completely.
+* Deletes an entire drupal instance (database, hosts etc) completely.  
 Note: This requires sudo access, but you need not prepend sudo, the script will ask you access either way.  
-Note: This script works assuming you have named you VirtualHost conf file as 'virtualhostname.conf' (only for Removing Drupal instance)
+Note: This script works assuming you have named you VirtualHost conf file as 'virtualhostname.conf' (only for Removing Drupal instance)  
 Examples for Virtual host names : drupa-7.local, test-1.com.local, drupal.com (If you're brave enough!), z1.test.drupal.local, dev.something.con, etc etc  
-Examples for their conf files : drupa-7.local.conf, test-1.com.local.conf, drupal.com.conf, z1.test.drupal.local.conf, dev.something.con.conf, etc etc
+Examples for their conf files : drupa-7.local.conf, test-1.com.local.conf, drupal.com.conf, z1.test.drupal.local.conf, dev.something.con.conf, etc etc  
 
 ## Usage
 
