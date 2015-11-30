@@ -1,6 +1,6 @@
 # About
 
-Script to setup a local instance of a drupal 7 website easily.
+Script to setup/remove a local instance of a drupal website easily.
 
 This does the following things:
 
@@ -12,13 +12,13 @@ This does the following things:
 * Deletes an entire drupal instance (database, hosts etc) completely.  
 Note: This requires sudo access, but you need not prepend sudo, the script will ask you access either way.  
 Note: This script works assuming you have named you VirtualHost conf file as 'virtualhostname.conf' (only for Removing Drupal instance)  
-Examples for Virtual host names : drupa-7.local, test-1.com.local, drupal.com (If you're brave enough!), z1.test.drupal.local, dev.something.con, etc etc  
-Examples for their conf files : drupa-7.local.conf, test-1.com.local.conf, drupal.com.conf, z1.test.drupal.local.conf, dev.something.con.conf, etc etc  
+Examples for Virtual host names : drupal-7.local, test-1.com.local, drupal.com (If you're brave enough!), z1.test.drupal.local, dev.something.con, etc etc  
+Examples for their conf files : drupal-7.local.conf, test-1.com.local.conf, drupal.com.conf, z1.test.drupal.local.conf, dev.something.con.conf, etc etc  
 
 ## Usage
 
 `dsup [-u <string>] [-p <string>] [/path/to/database/dump] [database name] [VirtualHost Name] [Link to repo] [optional/path/fo/drupal/installation]`  
-`dsup [-r <VirtualHost Name>]` : Here <Virtual Host Name> should be the name of the virtual host of the drupal instance you wish to delete completely.
+`dsup [-r <VirtualHost Name>]` : Here `<Virtual Host Name>` should be the name of the virtual host of the drupal instance you wish to delete completely.
 `dsup [-u <string>] [-p <string>] [-v <version>] [database name] [VirtualHost Name] [optional/path/fo/drupal/installation]`  
 
 ### Example
@@ -39,4 +39,9 @@ Open terminal and enter the following commands
 `$ sudo chmod +x /bin/dsup`  
 
 You're good to go! Execute the command dsup from anywhere now.
-Run command dsup to check the usage.
+Run command `dsup` to check the usage.
+
+## NOTES
+* This script operates under the asumption that you webroot is in `public_html`
+* There is no rollback as of yet. If the script fails while running, you will most likely be attached to another object by an inclined plane, wrapped helically around an axis!
+* Please point out mistakes and contribute to help make this better and add more functionalities.
