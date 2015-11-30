@@ -70,7 +70,6 @@ check_db_connect() {
 # 1 = Check for fail and roll back
 # 2 = Simply roll back, or remove drupal instance completely
 checkfail_rollback() {
-  sudo echo ' '
   flag=$1
   virtualhost=$2
   if [ ! -z "$flag" ] && [ $flag -eq 1 ]; then
@@ -185,6 +184,7 @@ checkfail_rollback() {
   exit 1
 }
 
+sudo echo ' '
 #Get public_html folder Path
 if [ -d $HOME/public_html ]; then
   PUBLIC_HTML="$HOME/public_html"
@@ -244,7 +244,6 @@ while true ; do
   esac
 done
 
-sudo echo ' '
 #New installation
 if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && ( [ $# == 2 ] || [ $# == 3 ] ); then
   echo "New Drupal installation"
@@ -256,7 +255,6 @@ if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -
     INSTALL_LOC=$PWD
   fi
   #Get sudo password and validate it
-  sudo_password
   #Check db connection
   check_db_connect
   # If database doesn't exist
@@ -300,7 +298,6 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
     INSTALL_LOC=$PWD
   fi
   #Get sudo password and validate it
-  sudo_password
   #Check db connection
   check_db_connect
   # If database doesn't exist
