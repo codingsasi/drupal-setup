@@ -168,7 +168,7 @@ checkfail_rollback() {
       done
     #For drush 6 and below
     else
-      dbn=$(drush status --pipe | grep 'username')
+      dbn=$(drush status --pipe | grep 'database_name')
       for i in $(echo $dbu | tr "=" "\n")
       do
         dbname="$i"
