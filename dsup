@@ -39,33 +39,24 @@ create_virtual_host() {
     Require all granted
       </Directory>
   </VirtualHost>" > $HOME/"$vhost".conf.temp
-  echo $spass | sudo -S mv $HOME/"$vhost".conf.temp /etc/apache2/sites-available/"$vhost".conf
-  echo $spass | sudo -S chmod 644 /etc/apache2/sites-available/"$vhost".conf
-  echo $spass | sudo -S cp /etc/hosts $HOME/hosts.temp
-  echo $spass | sudo -S chmod 777 $HOME/hosts.temp
+  sudo mv $HOME/"$vhost".conf.temp /etc/apache2/sites-available/"$vhost".conf
+  sudo chmod 644 /etc/apache2/sites-available/"$vhost".conf
+  sudo cp /etc/hosts $HOME/hosts.temp
+  sudo chmod 777 $HOME/hosts.temp
   echo -e "127.0.0.1  $vhost\n$(cat $HOME/hosts.temp)" > $HOME/hosts.temp
-  echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
-  echo $spass | sudo -S chmod 644 /etc/hosts
-  echo $spass | sudo -S a2ensite $vhost
-  echo $spass | sudo -S service apache2 restart
+  sudo mv $HOME/hosts.temp /etc/hosts
+  sudo chmod 644 /etc/hosts
+  sudo a2ensite $vhost
+  sudo service apache2 restart
 }
-sudo_password() {
-  echo "[sudo] password for $USER:"
-  read -s spass
-  echo $spass | sudo -S echo hello &> /dev/null
-  while ! [ "$(sudo -n echo hello 2>&1)" == "hello" ]; do
-    echo "Error [sudo] Re-enter password for $USER:"
-    read -s spass
-    echo $spass | sudo -S echo hello &> /dev/null
-  done
-}
+
 write_settings_file() {
-  echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
+  sudo cp $INSTALL_LOC/web/sites/default/default.settings.php $INSTALL_LOC/web/sites/default/settings.php
   old="databases = array();"
   new="databases = array ('default' => array ('default' => array ('database' => '$dbname', 'username' => '${u}', 'password' => '${p}','host' => 'localhost', 'port' => '', 'driver' => 'mysql', 'prefix' => '', ), ), );"
-  echo $spass | sudo -S sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
-  echo $spass | sudo -S rm $INSTALL_LOC/web/sites/default/settings.php
-  echo $spass | sudo -S mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
+  sudo sed "s/$old/$new/g" $INSTALL_LOC/web/sites/default/settings.php > $HOME/settings.php.temp
+  sudo rm $INSTALL_LOC/web/sites/default/settings.php
+  sudo mv $HOME/settings.php.temp $INSTALL_LOC/web/sites/default/settings.php
 }
 check_db_connect() {
   err=$(mysql -u "${u}" -p"${p}" -e 'SHOW DATABASES')
@@ -79,7 +70,7 @@ check_db_connect() {
 # 1 = Check for fail and roll back
 # 2 = Simply roll back, or remove drupal instance completely
 checkfail_rollback() {
-  sudo_password
+  sudo echo ' '
   flag=$1
   virtualhost=$2
   if [ ! -z "$flag" ] && [ $flag -eq 1 ]; then
@@ -92,19 +83,19 @@ checkfail_rollback() {
     fi
   elif [ ! -z "$flag" ] && [ $flag -eq 2 ] && [ ! -z  "$virtualhost" ]; then
     echo -e "\nRemoving and disabling virtual host with the name: $virtualhost ..."
-    echo $spass | sudo -S a2dissite $virtualhost
+    sudo a2dissite $virtualhost
     if [ ! -a /etc/hosts.old ]; then
-      echo $spass | sudo -S cp /etc/hosts /etc/hosts.old
+      sudo cp /etc/hosts /etc/hosts.old
       awk '!/'"$virtualhost"'/' /etc/hosts > $HOME/hosts.temp
-      echo $spass | sudo -S chmod 777 $HOME/hosts.temp
-      echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
-      echo $spass | sudo -S chmod 644 /etc/hosts
+      sudo chmod 777 $HOME/hosts.temp
+      sudo mv $HOME/hosts.temp /etc/hosts
+      sudo chmod 644 /etc/hosts
     else
       awk '!/'"$virtualhost"'/' /etc/hosts > hosts.temp
-      echo $spass | sudo -S chmod 777 $HOME/hosts.temp
-      echo $spass | sudo -S mv $HOME/hosts.temp /etc/hosts
-      echo $spass | sudo -S chmod 644 /etc/hosts
-      echo $spass | sudo -S rm $HOME/hosts.temp
+      sudo chmod 777 $HOME/hosts.temp
+      sudo mv $HOME/hosts.temp /etc/hosts
+      sudo chmod 644 /etc/hosts
+      sudo rm $HOME/hosts.temp
     fi
     temproot=$(grep 'DocumentRoot' /etc/apache2/sites-available/$virtualhost.conf)
     for i in $(echo $temproot | tr " " "\n")
@@ -183,11 +174,11 @@ checkfail_rollback() {
     mysql -u "$dbuname" -p"$dbpass" -e "drop database $dbname"
     echo -e "\nDone. \nRemoving all local files and folders..."
     if [ ! -z $linkdir ]; then
-      echo $spass | sudo -S rm -r $linkdir
+      sudo rm -r $linkdir
     fi
-    echo $spass | sudo -S rm -r $webroot
-    echo $spass | sudo -S rm /etc/apache2/sites-available/"$virtualhost".conf
-    echo $spass | sudo -S service apache2 restart
+    sudo rm -r $webroot
+    sudo rm /etc/apache2/sites-available/"$virtualhost".conf
+    sudo service apache2 restart
   else
     usage
   fi
@@ -253,6 +244,7 @@ while true ; do
   esac
 done
 
+sudo echo ' '
 #New installation
 if [ ! -z "$v" ] && [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [ ! -z "$2" ] && ( [ $# == 2 ] || [ $# == 3 ] ); then
   echo "New Drupal installation"
@@ -335,7 +327,7 @@ elif [ -z "${n}" ] && ( [ ! -z "${u}" ] && [ ! -z "${p}" ] && [ ! -z "$1" ] && [
   #If settings.php exists
   if [ -f $INSTALL_LOC/web/sites/default/settings.php ]; then
     #Use default.settings.php to add database connection details
-    echo $spass | sudo -S cp $INSTALL_LOC/web/sites/default/settings.php $INSTALL_LOC/web/sites/default/settings.php.old
+    sudo cp $INSTALL_LOC/web/sites/default/settings.php $INSTALL_LOC/web/sites/default/settings.php.old
     write_settings_file
   else
     #Use default.settings.php to add database connection details
