@@ -125,7 +125,7 @@ checkfail_rollback() {
         dbpass="$i"
       done
     #For drush 6 and below
-    else
+    elif [ -z "$dbp" ]; then
       dbp=$(drush status --show-passwords --pipe | grep 'password')
       for i in $(echo $dbn | tr "=" "\n")
       do
@@ -146,7 +146,7 @@ checkfail_rollback() {
         dbuname="$i"
       done
     #For drush 6 and below
-    else
+    elif [ -z "$dbu" ]; then
       dbu=$(drush status --pipe | grep 'username')
       for i in $(echo $dbu | tr "=" "\n")
       do
@@ -167,7 +167,7 @@ checkfail_rollback() {
         dbname="$i"
       done
     #For drush 6 and below
-    else
+    elif [ -z "$dbn" ]; then
       dbn=$(drush status --pipe | grep 'database_name')
       for i in $(echo $dbu | tr "=" "\n")
       do
