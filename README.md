@@ -34,6 +34,8 @@ Examples for their conf files : drupal-7.local.conf, test-1.com.local.conf, drup
 ## INSTALL
 
 Open terminal and enter the following commands  
+`$ cd /path/to/clone/drupal-setup/`
+`$ git clone https://gitlab.com/abhaisasidharan/drupal-setup.git`  
 `$ cd /bin`  
 `$ sudo ln -s /Path/to/dsup`  
 `$ sudo chmod +x /bin/dsup`  
@@ -45,3 +47,4 @@ Run command `dsup` to check the usage.
 * This script operates under the asumption that you webroot is in `public_html`
 * There is no rollback as of yet. If the script fails while running, you will most likely be attached to another object by an inclined plane, wrapped helically around an axis!
 * Please point out mistakes and contribute to help make this better and add more functionalities.
+* Run this script at your own risk. I am not liable for any damages caused. 
