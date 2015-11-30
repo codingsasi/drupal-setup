@@ -33,7 +33,7 @@ Examples for their conf files : drupa-7.local.conf, test-1.com.local.conf, drupa
 
 ## INSTALL
 
-Open terminal and enter the following commands
+Open terminal and enter the following commands  
 `$ cd /bin`  
 `$ sudo ln -s /Path/to/dsup`  
 `$ sudo chmod +x /bin/dsup`  
