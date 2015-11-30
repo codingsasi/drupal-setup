@@ -118,7 +118,7 @@ checkfail_rollback() {
     pushd $webroot > /dev/null
     #DB password
     #For drush 7 and above
-    dbp=$(drush status --show-passwords --format=yaml --pipe | grep 'password')
+    dbp=$(drush status --show-passwords --format=yaml --pipe --strict=0 | grep 'password')
     if [ ! -z "$dbp" ]; then
       for i in $(echo $dbp | tr ": " "\n")
       do
@@ -127,7 +127,7 @@ checkfail_rollback() {
     #For drush 6 and below
     elif [ -z "$dbp" ]; then
       dbp=$(drush status --show-passwords --pipe | grep 'password')
-      for i in $(echo $dbn | tr "=" "\n")
+      for i in $(echo $dbp | tr "=" "\n")
       do
         dbpass="$i"
       done
@@ -139,7 +139,7 @@ checkfail_rollback() {
 
     #DB username
     #For drush 7 and above
-    dbu=$(drush status db-username --format=yaml --pipe)
+    dbu=$(drush status db-username --format=yaml --pipe --strict=0)
     if [ ! -z "$dbu" ]; then
       for i in $(echo $dbu | tr ": " "\n")
       do
@@ -160,7 +160,7 @@ checkfail_rollback() {
 
     #DB name
     #For drush 7 and above
-    dbn=$(drush status db-name --format=yaml --pipe)
+    dbn=$(drush status db-name --format=yaml --pipe --strict=0)
     if [ ! -z "$dbn" ]; then
       for i in $(echo $dbn | tr ": " "\n")
       do
